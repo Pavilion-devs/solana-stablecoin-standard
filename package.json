@@ -1,0 +1,37 @@
+{
+  "name": "@stbr/solana-stablecoin-standard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solana Stablecoin Standards - SSS-1 (minimal) and SSS-2 (compliant)",
+  "workspaces": [
+    "sdk/core",
+    "cli"
+  ],
+  "scripts": {
+    "build": "anchor build",
+    "test": "anchor test",
+    "test:local": "anchor test --skip-local-validator",
+    "test:cli": "ts-node --transpile-only scripts/test-cli.ts",
+    "test:sdk": "yarn workspaces foreach -A run test",
+    "clean": "rm -rf target node_modules",
+    "deploy:devnet": "anchor deploy --provider.cluster devnet",
+    "lint": "eslint --ext .ts programs tests sdk cli"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.10",
+    "@solana/web3.js": "^1.98.0"
+  },
+  "devDependencies": {
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

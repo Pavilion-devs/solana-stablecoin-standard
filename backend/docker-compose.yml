@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  sss-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - BIND_ADDR=0.0.0.0:3000
+      - RPC_URL=http://solana-validator:8899
+      - PROGRAM_ID=GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM
+    depends_on:
+      - solana-validator
+    restart: unless-stopped
+
+  solana-validator:
+    image: solanalabs/solana:stable
+    ports:
+      - "8899:8899"
+      - "8900:8900"
+    command: >
+      solana-test-validator
+      --rpc-port 8899
+      --no-airdrop
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: sss-network

@@ -1,0 +1,77 @@
+# Solana
+target/
+test-ledger/
+*.so
+*.rmeta
+*.abi
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+.yarn/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build
+build/
+.cache/
+
+# Keys (never commit keypairs!)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!Anchor.toml
+!target/idl/*.json
+
+# Test artifacts
+.test-artifacts/
+coverage/
+
+# Backend
+backend/target/
+backend/test-ledger/
+
+# Misc
+*.backup
+*.bak
+.tmp/
+
+# Out-of-scope local artifacts
+landing-page/
+7k-mobile-landing.aura.build-content.html
+
+# Test ledgers (large files)
+test-ledger/
+test-ledger-*
+
+# Local planning / audit artifacts
+CLAUDE.md
+plan.md
+details.txt
+fixes.md
+fixes-review.md
+final-review-checklist.md
+session-*.md
+*-command-message*.txt
+package-lock.json

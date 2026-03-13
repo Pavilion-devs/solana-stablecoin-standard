@@ -1,0 +1,8 @@
+[fuzz.metrics]
+enabled = true
+
+
+[[fuzz.programs]]
+address = "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+program = "../target/deploy/sss_token.so"
+ 

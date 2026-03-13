@@ -1,0 +1,24 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.devnet]
+sss_token = "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+transfer_hook = "HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU"
+
+[programs.localnet]
+sss_token = "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+transfer_hook = "HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "yarn run ts-mocha -r ts-node/register/transpile-only -p ./tsconfig.json -t 1000000 tests/sss-2.ts tests/sss-1.ts"
