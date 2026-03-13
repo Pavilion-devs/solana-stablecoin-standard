@@ -100,6 +100,10 @@ solana-stablecoin-standard/
 
 ## Example Frontend
 
+Live demo:
+
+- https://solana-stablecoin-standard-indol.vercel.app/
+
 ```bash
 # Build the SDK first so the local frontend dependency is available
 yarn workspace @stbr/sss-token build
