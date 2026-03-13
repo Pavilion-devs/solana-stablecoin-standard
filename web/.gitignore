@@ -1,0 +1,9 @@
+.vercel
+.next
+node_modules
+out
+coverage
+npm-debug.log*
+.env*
+!.env.example
+*.aura.build-content.html

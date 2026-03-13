@@ -43,6 +43,8 @@ build/
 !tsconfig.json
 !Anchor.toml
 !target/idl/*.json
+!web/src/lib/idl/*.json
+!web/.eslintrc.json
 
 # Test artifacts
 .test-artifacts/

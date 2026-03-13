@@ -93,8 +93,30 @@ solana-stablecoin-standard/
 │   └── transfer-hook/      # SSS-2 transfer hook
 ├── sdk/core/               # @stbr/sss-token
 ├── cli/                    # sss-token CLI
+├── web/                    # Example frontend using the SDK
 ├── tests/                  # Integration tests
 └── docs/                   # Documentation
+```
+
+## Example Frontend
+
+```bash
+# Build the SDK first so the local frontend dependency is available
+yarn workspace @stbr/sss-token build
+
+# Install and run the example frontend
+cd web
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Optional environment variables for `web/`:
+
+```bash
+NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+NEXT_PUBLIC_SSS_PROGRAM_ID=GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM
+NEXT_PUBLIC_TRANSFER_HOOK_PROGRAM_ID=HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU
 ```
 
 ## Build
