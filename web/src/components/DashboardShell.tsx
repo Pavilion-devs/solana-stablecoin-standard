@@ -118,6 +118,15 @@ async function accountExists(client: SolanaStablecoin, address: PublicKey) {
   return Boolean(existing);
 }
 
+async function isTokenAccountFrozen(client: SolanaStablecoin, tokenAccount: PublicKey) {
+  const accountInfo = await client.provider.connection.getParsedAccountInfo(tokenAccount, 'confirmed');
+  return Boolean(
+    accountInfo.value &&
+    'parsed' in accountInfo.value.data &&
+    accountInfo.value.data.parsed.info.state === 'frozen'
+  );
+}
+
 export function DashboardShell({
   walletAddress,
   onDisconnect,
@@ -303,13 +312,7 @@ export function DashboardShell({
 
       if (state.defaultAccountFrozen) {
         const tokenAccount = await ensureTokenAccount(stablecoin, recipient);
-        const tokenAccountInfo = await stablecoin.provider.connection.getParsedAccountInfo(tokenAccount, 'confirmed');
-        const isFrozen =
-          tokenAccountInfo.value &&
-          'parsed' in tokenAccountInfo.value.data &&
-          tokenAccountInfo.value.data.parsed.info.state === 'frozen';
-
-        if (isFrozen) {
+        if (await isTokenAccountFrozen(stablecoin, tokenAccount)) {
           const thawSignature = await stablecoin.thawAccount(recipient);
           signatures.push(thawSignature);
         }
@@ -417,9 +420,24 @@ export function DashboardShell({
       const fromOwner = parsePublicKey(seizeForm.fromOwner, 'Source owner');
       const treasuryOwner = parsePublicKey(seizeForm.treasuryOwner, 'Treasury owner');
       const amount = new BN(parseUiAmount(seizeForm.amount, state.decimals).toString());
+      const signatures: string[] = [];
       const fromAccount = stablecoin.getTokenAccount(fromOwner);
       const toAccount = await ensureTokenAccount(stablecoin, treasuryOwner);
-      return stablecoin.compliance.seize(fromAccount, toAccount, amount);
+
+      if (state.defaultAccountFrozen && await isTokenAccountFrozen(stablecoin, toAccount)) {
+        const thawSignature = await stablecoin.thawAccount(treasuryOwner);
+        signatures.push(thawSignature);
+      }
+
+      const seizeSignature = await stablecoin.compliance.seize(fromAccount, toAccount, amount);
+      signatures.push(seizeSignature);
+
+      return {
+        signatures,
+        message: state.defaultAccountFrozen
+          ? `Prepared treasury and seized ${seizeForm.amount} ${state.symbol}.`
+          : undefined,
+      };
     });
   };
 
