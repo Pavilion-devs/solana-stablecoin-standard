@@ -15,7 +15,7 @@ use tower::util::ServiceExt;
 fn test_state() -> AppState {
     let config = Config {
         rpc_url: "http://127.0.0.1:8899".to_string(),
-        program_id: "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM".to_string(),
+        program_id: "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe".to_string(),
         treasury: "treasury".to_string(),
         keypair_path: "keypair.json".to_string(),
         cli_entrypoint: "cli.js".to_string(),

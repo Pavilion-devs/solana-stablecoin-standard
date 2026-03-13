@@ -7,7 +7,7 @@ import { SolanaStablecoin } from '@stbr/sss-token';
 import { loadConfig } from './config';
 import { getConnection, getWallet } from './rpc';
 
-const DEFAULT_PROGRAM_ID = 'GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM';
+const DEFAULT_PROGRAM_ID = 'CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe';
 const DEFAULT_IDL_PATH = path.resolve(process.cwd(), 'target', 'idl', 'sss_token.json');
 
 export interface ProgramContext {

@@ -210,5 +210,5 @@ The compliance service can integrate with:
 
 | Program | ID |
 |---------|-----|
-| SSS Token | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` |
+| SSS Token | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` |
 | Transfer Hook | `HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU` |

@@ -53,7 +53,7 @@ impl Default for Config {
             rpc_url: std::env::var("RPC_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:8899".to_string()),
             program_id: std::env::var("PROGRAM_ID")
-                .unwrap_or_else(|_| "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM".to_string()),
+                .unwrap_or_else(|_| "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe".to_string()),
             treasury: std::env::var("TREASURY").unwrap_or_default(),
             keypair_path: std::env::var("SOLANA_KEYPAIR").unwrap_or_else(|_| {
                 format!("{home_dir}/.config/solana/id.json")

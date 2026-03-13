@@ -26,7 +26,7 @@ pub mod sss_token {
 
     /// Returns the program ID for sss_token
     pub fn program_id() -> Pubkey {
-        pubkey!("GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM")
+        pubkey!("CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe")
     }
 
     // ------------------------------------------------------------------------
@@ -1635,7 +1635,7 @@ pub mod sss_token {
             self.accounts.mint = AccountMeta::new_readonly(accounts.mint, false);
 
             self.accounts.sss_token_program = AccountMeta::new_readonly(
-                pubkey!("GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"),
+                pubkey!("CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe"),
                 false,
             );
 

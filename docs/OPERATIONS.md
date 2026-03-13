@@ -55,7 +55,7 @@ enable_transfer_hook = true
 transfer_hook_program = "HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU"
 default_frozen = false
 rpc = "http://127.0.0.1:8899"
-program_id = "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+program_id = "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe"
 ```
 
 ## Daily Operations

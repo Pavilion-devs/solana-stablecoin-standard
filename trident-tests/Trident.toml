@@ -3,6 +3,6 @@ enabled = true
 
 
 [[fuzz.programs]]
-address = "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+address = "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe"
 program = "../target/deploy/sss_token.so"
  

@@ -9,7 +9,7 @@ import sssTokenIdl from '@/lib/idl/sss_token.json';
 export const DEFAULT_RPC_ENDPOINT =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com';
 export const DEFAULT_PROGRAM_ID_STRING =
-  process.env.NEXT_PUBLIC_SSS_PROGRAM_ID || 'GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM';
+  process.env.NEXT_PUBLIC_SSS_PROGRAM_ID || 'CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe';
 export const DEFAULT_TRANSFER_HOOK_PROGRAM_ID_STRING =
   process.env.NEXT_PUBLIC_TRANSFER_HOOK_PROGRAM_ID ||
   'HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU';

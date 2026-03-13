@@ -161,5 +161,5 @@ SSS-1 tokens cannot be directly upgraded to SSS-2. To migrate:
 
 | Network | Program ID |
 |---------|------------|
-| Localnet | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` |
-| Devnet (configured) | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` |
+| Localnet | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` |
+| Devnet (configured) | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` |

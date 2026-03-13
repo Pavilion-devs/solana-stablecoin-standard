@@ -302,5 +302,5 @@ docker compose up -d
 |----------|-------------|---------|
 | `BIND_ADDR` | Server bind address | `0.0.0.0:3000` |
 | `RPC_URL` | Solana RPC endpoint | `http://127.0.0.1:8899` |
-| `PROGRAM_ID` | SSS Token program ID | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` |
+| `PROGRAM_ID` | SSS Token program ID | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` |
 | `RUST_LOG` | Log level | `info` |

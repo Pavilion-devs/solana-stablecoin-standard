@@ -115,7 +115,7 @@ Optional environment variables for `web/`:
 
 ```bash
 NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
-NEXT_PUBLIC_SSS_PROGRAM_ID=GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM
+NEXT_PUBLIC_SSS_PROGRAM_ID=CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe
 NEXT_PUBLIC_TRANSFER_HOOK_PROGRAM_ID=HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU
 ```
 
@@ -153,8 +153,8 @@ yarn test:cli
 
 | Network | SSS Token | Transfer Hook |
 |---------|-----------|---------------|
-| Localnet | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` | `HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU` |
-| Devnet (configured) | `GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM` | `HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU` |
+| Localnet | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` | `HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU` |
+| Devnet (configured) | `CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe` | `HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU` |
 
 ## Documentation
 

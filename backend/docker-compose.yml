@@ -11,7 +11,7 @@ services:
       - RUST_LOG=info
       - BIND_ADDR=0.0.0.0:3000
       - RPC_URL=http://solana-validator:8899
-      - PROGRAM_ID=GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM
+      - PROGRAM_ID=CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe
     depends_on:
       - solana-validator
     restart: unless-stopped

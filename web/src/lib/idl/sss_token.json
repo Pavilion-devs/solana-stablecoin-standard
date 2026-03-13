@@ -1,5 +1,5 @@
 {
-  "address": "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM",
+  "address": "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe",
   "metadata": {
     "name": "sss_token",
     "version": "0.1.0",
@@ -870,7 +870,7 @@
         },
         {
           "name": "sss_token_program",
-          "address": "GZpZyBHsMrLNmvc6W8ic9SEaZ21BeTfQhW7vKnQPmQiM"
+          "address": "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe"
         },
         {
           "name": "token_2022_program",
