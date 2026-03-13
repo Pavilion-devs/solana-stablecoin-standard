@@ -299,11 +299,33 @@ export function DashboardShell({
     await runAction('Mint', async () => {
       const recipient = parsePublicKey(mintForm.recipient, 'Recipient');
       const amount = new BN(parseUiAmount(mintForm.amount, state.decimals).toString());
+      const signatures: string[] = [];
+
+      if (state.defaultAccountFrozen) {
+        const tokenAccount = await ensureTokenAccount(stablecoin, recipient);
+        const tokenAccountInfo = await stablecoin.provider.connection.getParsedAccountInfo(tokenAccount, 'confirmed');
+        const isFrozen =
+          tokenAccountInfo.value &&
+          'parsed' in tokenAccountInfo.value.data &&
+          tokenAccountInfo.value.data.parsed.info.state === 'frozen';
+
+        if (isFrozen) {
+          const thawSignature = await stablecoin.thawAccount(recipient);
+          signatures.push(thawSignature);
+        }
+      }
+
       const signature = await stablecoin.mint({ recipient, amount });
+      signatures.push(signature);
       const recipientAddress = recipient.toBase58();
       setFreezeOwner(recipientAddress);
       setSeizeForm((prev) => ({ ...prev, fromOwner: prev.fromOwner || recipientAddress }));
-      return signature;
+      return {
+        signatures,
+        message: state.defaultAccountFrozen
+          ? `Prepared and minted to ${shortKey(recipientAddress)}.`
+          : undefined,
+      };
     });
   };
 
@@ -701,8 +723,8 @@ export function DashboardShell({
     <div className="space-y-6">
       <div className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm">
         <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Treasury Operations</div>
-        <p className="mt-4 text-sm leading-7 text-neutral-600">
-          These actions use the SDK directly with the connected wallet. Amount inputs use token units, not raw base units.
+          <p className="mt-4 text-sm leading-7 text-neutral-600">
+          These actions use the SDK directly with the connected wallet. Amount inputs use token units, not raw base units. On SSS-2, the UI prepares fresh recipient accounts before minting because default-frozen Token-2022 accounts cannot receive mints until thawed.
         </p>
       </div>
 
@@ -790,7 +812,7 @@ export function DashboardShell({
             Freeze / Thaw
           </div>
           <p className="mb-4 text-sm leading-7 text-neutral-600">
-            Enter the wallet owner, not the token account address. On SSS-2, a fresh recipient ATA starts frozen by default, so the usual flow is mint to a wallet, then thaw that same wallet once.
+            Enter the wallet owner, not the token account address. On SSS-2, a fresh recipient ATA starts frozen by default. The mint flow prepares that ATA automatically, and you can use freeze/thaw here for explicit compliance controls afterward.
           </p>
           <div className="space-y-4">
             <input
