@@ -2,6 +2,10 @@
 
 Open-source SDK & core standards for stablecoins on Solana.
 
+Demo video:
+
+- https://youtu.be/axewG2gr8Q0
+
 ## Standards
 
 | Standard | Name | Description |
