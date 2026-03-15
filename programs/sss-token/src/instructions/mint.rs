@@ -48,13 +48,6 @@ pub fn handler(ctx: Context<Mint>, amount: u64) -> Result<()> {
     let config = &ctx.accounts.config;
     let config_bump = config.bump;
 
-    msg!(
-        "Mint attempt: amount={}, config_bump={}, mint={}",
-        amount,
-        config_bump,
-        ctx.accounts.mint.key()
-    );
-
     let seeds: &[&[u8]] = &[CONFIG_SEED, &[config_bump]];
     let signer_seeds = &[seeds];
 
@@ -77,8 +70,6 @@ pub fn handler(ctx: Context<Mint>, amount: u64) -> Result<()> {
         ],
         signer_seeds,
     )?;
-
-    msg!("Mint CPI successful");
 
     let minter_info = &mut ctx.accounts.minter_info;
     minter_info.minted = minter_info
