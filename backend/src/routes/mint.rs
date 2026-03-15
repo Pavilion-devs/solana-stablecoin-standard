@@ -2,19 +2,23 @@ use axum::{extract::State, http::StatusCode, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use crate::{append_event, AppState, MintRequestRecord};
+use crate::{append_event, resolve_target, types::StablecoinTarget, AppState, MintRequestRecord};
 
 #[derive(Deserialize)]
 pub struct MintRequest {
     pub recipient: String,
     pub amount: u64,
     pub reference: Option<String>,
+    #[serde(flatten)]
+    pub target: StablecoinTarget,
 }
 
 #[derive(Deserialize)]
 pub struct BurnRequest {
     pub amount: u64,
     pub reason: Option<String>,
+    #[serde(flatten)]
+    pub target: StablecoinTarget,
 }
 
 #[derive(Serialize)]
@@ -23,6 +27,7 @@ pub struct MintExecutionResponse {
     pub request_id: String,
     pub status: String,
     pub tx_signature: String,
+    pub target: StablecoinTarget,
     pub message: String,
 }
 
@@ -33,6 +38,7 @@ pub struct BurnExecutionResponse {
     pub status: String,
     pub amount: u64,
     pub tx_signature: String,
+    pub target: StablecoinTarget,
     pub message: String,
 }
 
@@ -41,6 +47,7 @@ pub struct MintRequestResponse {
     pub request_id: String,
     pub recipient: String,
     pub amount: u64,
+    pub target: StablecoinTarget,
     pub status: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
@@ -56,12 +63,19 @@ pub async fn request_mint(
     State(state): State<AppState>,
     Json(req): Json<MintRequest>,
 ) -> Result<Json<MintRequestResponse>, StatusCode> {
+    let config = state.config.read().await.clone();
+    let target = resolve_target(&config, &req.target).map_err(|err| {
+        tracing::warn!("Invalid mint request target: {err}");
+        StatusCode::BAD_REQUEST
+    })?;
+
     let request_id = next_request_id("MINT");
     let record = MintRequestRecord {
         request_id: request_id.clone(),
         recipient: req.recipient.clone(),
         amount: req.amount,
         reference: req.reference.clone(),
+        target: target.clone(),
         status: "pending".to_string(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
@@ -82,6 +96,7 @@ pub async fn request_mint(
             "recipient": &req.recipient,
             "amount": req.amount,
             "reference": &req.reference,
+            "target": &target,
         }),
     )
     .await;
@@ -90,6 +105,7 @@ pub async fn request_mint(
         request_id,
         recipient: req.recipient,
         amount: req.amount,
+        target,
         status: "pending".to_string(),
         created_at: Utc::now(),
     }))
@@ -100,6 +116,8 @@ pub async fn mint_tokens(
     Json(req): Json<MintRequest>,
 ) -> Result<Json<MintExecutionResponse>, (StatusCode, Json<ErrorResponse>)> {
     validate_amount(req.amount)?;
+    let config = state.config.read().await.clone();
+    let target = resolve_target(&config, &req.target).map_err(bad_request)?;
 
     {
         let sanctions = state.sanctions_checker.read().await;
@@ -114,10 +132,9 @@ pub async fn mint_tokens(
     }
 
     let request_id = next_request_id("EXEC");
-    let config = state.config.read().await.clone();
     let execution = state
         .executor
-        .mint(&config, &req.recipient, req.amount)
+        .mint(&config, &target, &req.recipient, req.amount)
         .await
         .map_err(internal_error)?;
 
@@ -128,6 +145,7 @@ pub async fn mint_tokens(
             recipient: req.recipient.clone(),
             amount: req.amount,
             reference: req.reference.clone(),
+            target: target.clone(),
             status: "completed".to_string(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
@@ -144,6 +162,7 @@ pub async fn mint_tokens(
             "recipient": &req.recipient,
             "amount": req.amount,
             "reference": &req.reference,
+            "target": &target,
             "tx_signature": &execution.signature,
         }),
     )
@@ -154,6 +173,7 @@ pub async fn mint_tokens(
         request_id,
         status: "completed".to_string(),
         tx_signature: execution.signature,
+        target,
         message: "Tokens minted successfully".to_string(),
     }))
 }
@@ -163,12 +183,13 @@ pub async fn burn_tokens(
     Json(req): Json<BurnRequest>,
 ) -> Result<Json<BurnExecutionResponse>, (StatusCode, Json<ErrorResponse>)> {
     validate_amount(req.amount)?;
+    let config = state.config.read().await.clone();
+    let target = resolve_target(&config, &req.target).map_err(bad_request)?;
 
     let request_id = next_request_id("BURN");
-    let config = state.config.read().await.clone();
     let execution = state
         .executor
-        .burn(&config, req.amount)
+        .burn(&config, &target, req.amount)
         .await
         .map_err(internal_error)?;
 
@@ -179,6 +200,7 @@ pub async fn burn_tokens(
             "request_id": &request_id,
             "amount": req.amount,
             "reason": &req.reason,
+            "target": &target,
             "tx_signature": &execution.signature,
         }),
     )
@@ -190,6 +212,7 @@ pub async fn burn_tokens(
         status: "completed".to_string(),
         amount: req.amount,
         tx_signature: execution.signature,
+        target,
         message: "Tokens burned successfully".to_string(),
     }))
 }
@@ -223,4 +246,8 @@ fn internal_error(err: anyhow::Error) -> (StatusCode, Json<ErrorResponse>) {
             error: err.to_string(),
         }),
     )
+}
+
+fn bad_request(err: String) -> (StatusCode, Json<ErrorResponse>) {
+    (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: err }))
 }

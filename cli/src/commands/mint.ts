@@ -2,19 +2,24 @@ import { Command } from 'commander';
 import { BN } from '@coral-xyz/anchor';
 import { PublicKey } from '@solana/web3.js';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
-export const mintCommand = new Command('mint')
+export const mintCommand = addStablecoinTargetOptions(new Command('mint')
   .description('Mint tokens to a recipient')
   .argument('<recipient>', 'Recipient address')
   .argument('<amount>', 'Amount to mint')
   .option('-k, --keypair <path>', 'Path to minter keypair')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (recipient: string, amount: string, options) => {
     try {
       const recipientKey = new PublicKey(recipient);
       const amountBn = new BN(amount);
 
-      const { stablecoin, wallet } = await loadStablecoinContext(options.rpc, options.keypair);
+      const { stablecoin, wallet } = await loadStablecoinContext(
+        options.rpc,
+        options.keypair,
+        pickStablecoinTargetOptions(options)
+      );
       const signature = await stablecoin.mint(
         { recipient: recipientKey, amount: amountBn },
         wallet

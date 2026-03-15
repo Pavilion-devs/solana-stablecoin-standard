@@ -50,13 +50,21 @@ type TxItem = {
   signature: string;
 };
 
+type StablecoinTarget =
+  | { mode: 'legacy' }
+  | { mode: 'seed'; value: string }
+  | { mode: 'config'; value: string };
+
+type ActionPayload = {
+  signatures?: string[];
+  message?: string;
+  nextTarget?: StablecoinTarget;
+};
+
 type ActionResult =
   | string
   | string[]
-  | {
-      signatures?: string[];
-      message?: string;
-    }
+  | ActionPayload
   | void;
 
 const roleOptions = [
@@ -73,6 +81,8 @@ const sections: Array<{ key: SectionKey; icon: typeof LayoutDashboard }> = [
   { key: 'Treasury', icon: Coins },
   { key: 'Compliance', icon: ShieldCheck },
 ];
+
+const TARGET_STORAGE_KEY = 'sss-web.active-target';
 
 function extractErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -91,6 +101,149 @@ function isMissingConfigError(error: unknown) {
 
 function cardValue(value: string | null | undefined) {
   return value && value.length > 0 ? value : '--';
+}
+
+function getTargetValue(target: StablecoinTarget) {
+  return target.mode === 'legacy' ? '' : target.value;
+}
+
+function describeTarget(target: StablecoinTarget) {
+  switch (target.mode) {
+    case 'legacy':
+      return 'Legacy singleton';
+    case 'seed':
+      return `Seed: ${target.value}`;
+    case 'config':
+      return `Config: ${target.value}`;
+  }
+}
+
+function isPersistableTarget(target: unknown): target is StablecoinTarget {
+  if (!target || typeof target !== 'object' || !('mode' in target)) {
+    return false;
+  }
+
+  if (target.mode === 'legacy') {
+    return true;
+  }
+
+  return (
+    (target.mode === 'seed' || target.mode === 'config') &&
+    'value' in target &&
+    typeof target.value === 'string' &&
+    target.value.trim().length > 0
+  );
+}
+
+function getTargetFromLocation(): StablecoinTarget | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const search = new URLSearchParams(window.location.search);
+  const config = search.get('config')?.trim();
+  if (config) {
+    return { mode: 'config', value: config } as StablecoinTarget;
+  }
+
+  const seed = search.get('seed')?.trim();
+  if (seed) {
+    return { mode: 'seed', value: seed } as StablecoinTarget;
+  }
+
+  const legacy = search.get('target')?.trim();
+  if (legacy === 'legacy') {
+    return { mode: 'legacy' } as StablecoinTarget;
+  }
+
+  return null;
+}
+
+function readStoredTarget(): StablecoinTarget {
+  if (typeof window === 'undefined') {
+    return { mode: 'legacy' } as StablecoinTarget;
+  }
+
+  const fromLocation = getTargetFromLocation();
+  if (fromLocation) {
+    return fromLocation;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TARGET_STORAGE_KEY);
+    if (!raw) {
+      return { mode: 'legacy' } as StablecoinTarget;
+    }
+
+    const parsed = JSON.parse(raw);
+    return isPersistableTarget(parsed) ? parsed : { mode: 'legacy' };
+  } catch {
+    return { mode: 'legacy' } as StablecoinTarget;
+  }
+}
+
+function persistTarget(target: StablecoinTarget) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(TARGET_STORAGE_KEY, JSON.stringify(target));
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete('target');
+  url.searchParams.delete('seed');
+  url.searchParams.delete('config');
+
+  switch (target.mode) {
+    case 'legacy':
+      url.searchParams.set('target', 'legacy');
+      break;
+    case 'seed':
+      url.searchParams.set('seed', target.value);
+      break;
+    case 'config':
+      url.searchParams.set('config', target.value);
+      break;
+  }
+
+  window.history.replaceState(null, '', url.toString());
+}
+
+function formatMissingConfigMessage(target: StablecoinTarget) {
+  switch (target.mode) {
+    case 'legacy':
+      return 'No legacy stablecoin instance has been initialized for this program yet.';
+    case 'seed':
+      return `No stablecoin instance was found for seed "${target.value}" on this program.`;
+    case 'config':
+      return `No stablecoin instance was found at config ${target.value}.`;
+  }
+}
+
+function formatStablecoinSeed(seed: number[] | null | undefined, version: number | null | undefined) {
+  if (version !== 2 || !seed) {
+    return 'Legacy / not set';
+  }
+
+  const bytes = Uint8Array.from(seed);
+  let end = bytes.length;
+  while (end > 0 && bytes[end - 1] === 0) {
+    end -= 1;
+  }
+
+  if (end === 0) {
+    return '0x00';
+  }
+
+  const normalized = bytes.slice(0, end);
+  const decoded = new TextDecoder().decode(normalized);
+  if (/^[\x20-\x7E]+$/.test(decoded)) {
+    return decoded;
+  }
+
+  return `0x${Array.from(normalized)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')}`;
 }
 
 async function ensureTokenAccount(client: SolanaStablecoin, owner: PublicKey) {
@@ -136,6 +289,9 @@ export function DashboardShell({
 }) {
   const program = useStablecoinProgram();
   const [active, setActive] = useState<SectionKey>('Overview');
+  const [activeTarget, setActiveTarget] = useState<StablecoinTarget>({ mode: 'legacy' });
+  const [targetMode, setTargetMode] = useState<StablecoinTarget['mode']>('legacy');
+  const [targetValue, setTargetValue] = useState('');
   const [stablecoin, setStablecoin] = useState<SolanaStablecoin | null>(null);
   const [state, setState] = useState<StablecoinConfigState | null>(null);
   const [supply, setSupply] = useState('0');
@@ -145,6 +301,7 @@ export function DashboardShell({
   const [notice, setNotice] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
   const [transactions, setTransactions] = useState<TxItem[]>([]);
+  const [targetReady, setTargetReady] = useState(false);
 
   const [initForm, setInitForm] = useState({
     preset: 'sss-2',
@@ -156,6 +313,7 @@ export function DashboardShell({
     enableTransferHook: true,
     defaultFrozen: true,
     transferHookProgram: DEFAULT_TRANSFER_HOOK_PROGRAM_ID_STRING,
+    stablecoinSeed: '',
   });
   const [mintForm, setMintForm] = useState({ recipient: walletAddress, amount: '1000' });
   const [burnAmount, setBurnAmount] = useState('100');
@@ -175,40 +333,86 @@ export function DashboardShell({
     setTransactions((prev) => [{ label, signature }, ...prev].slice(0, 8));
   }, []);
 
-  const refresh = useCallback(async () => {
+  const syncTargetDraft = useCallback((target: StablecoinTarget) => {
+    setTargetMode(target.mode);
+    setTargetValue(getTargetValue(target));
+  }, []);
+
+  const loadStablecoin = useCallback(
+    async (target: StablecoinTarget) => {
+      if (!program) {
+        throw new Error('Wallet program context is not ready yet.');
+      }
+
+      switch (target.mode) {
+        case 'legacy':
+          return SolanaStablecoin.load(program);
+        case 'seed':
+          return SolanaStablecoin.loadWithOptions(program, { stablecoinSeed: target.value });
+        case 'config':
+          return SolanaStablecoin.loadWithOptions(program, {
+            config: parsePublicKey(target.value, 'Config PDA'),
+          });
+      }
+    },
+    [program],
+  );
+
+  const refresh = useCallback(async (targetOverride?: StablecoinTarget) => {
     if (!program) {
       setLoading(false);
-      return;
+      return false;
     }
 
+    const target = targetOverride ?? activeTarget;
     setLoading(true);
     try {
-      const client = await SolanaStablecoin.load(program);
+      const client = await loadStablecoin(target);
       const [nextState, totalSupply] = await Promise.all([client.getState(), client.getTotalSupply()]);
       setStablecoin(client);
       setState(nextState);
       setSupply(formatUnits(totalSupply, nextState.decimals));
       setIsInitialized(true);
       setError('');
+      return true;
     } catch (err) {
       setStablecoin(null);
       setState(null);
       setSupply('0');
       if (isMissingConfigError(err)) {
         setIsInitialized(false);
-        setError('No stablecoin instance has been initialized for this program yet.');
+        setError(formatMissingConfigMessage(target));
       } else {
         setIsInitialized(false);
         setError(extractErrorMessage(err));
       }
+      return false;
     } finally {
       setLoading(false);
     }
-  }, [program]);
+  }, [activeTarget, loadStablecoin, program]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    const restoredTarget = readStoredTarget();
+    setActiveTarget(restoredTarget);
+    syncTargetDraft(restoredTarget);
+    setTargetReady(true);
+  }, [syncTargetDraft]);
+
+  useEffect(() => {
+    if (!targetReady) {
+      return;
+    }
+
+    void refresh(activeTarget);
+    // We only need the initial load when the wallet program context changes.
+    // Target switches call refresh explicitly to avoid double-loading the same target.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [program, targetReady]);
+
+  useEffect(() => {
+    persistTarget(activeTarget);
+  }, [activeTarget]);
 
   useEffect(() => {
     setMintForm((prev) => (prev.recipient === walletAddress ? prev : { ...prev, recipient: walletAddress }));
@@ -224,6 +428,7 @@ export function DashboardShell({
       setNotice('');
       try {
         const result = await handler();
+        let nextTarget: StablecoinTarget | undefined;
         if (typeof result === 'string') {
           appendTx(label, result);
           setNotice(`${label} submitted: ${result}`);
@@ -232,6 +437,7 @@ export function DashboardShell({
           setNotice(`${label} submitted ${result.length} transaction(s).`);
         } else if (result && typeof result === 'object') {
           const signatures = result.signatures ?? [];
+          nextTarget = result.nextTarget;
           signatures.forEach((signature, index) =>
             appendTx(signatures.length > 1 ? `${label} ${index + 1}` : label, signature),
           );
@@ -242,15 +448,75 @@ export function DashboardShell({
         } else {
           setNotice(`${label} completed successfully.`);
         }
-        await refresh();
+        if (nextTarget) {
+          setActiveTarget(nextTarget);
+          syncTargetDraft(nextTarget);
+        }
+        await refresh(nextTarget);
       } catch (err) {
         setError(extractErrorMessage(err));
       } finally {
         setBusyLabel(null);
       }
     },
-    [appendTx, refresh],
+    [appendTx, refresh, syncTargetDraft],
   );
+
+  const handleLoadTarget = useCallback(async () => {
+    if (!program) {
+      setError('Wallet program context is not ready yet.');
+      return;
+    }
+
+    let nextTarget: StablecoinTarget;
+    try {
+      if (targetMode === 'legacy') {
+        nextTarget = { mode: 'legacy' };
+      } else if (targetMode === 'seed') {
+        const value = targetValue.trim();
+        if (!value) {
+          throw new Error('Stablecoin seed is required when loading by seed.');
+        }
+        nextTarget = { mode: 'seed', value };
+      } else {
+        const value = targetValue.trim();
+        if (!value) {
+          throw new Error('Config PDA is required when loading by config.');
+        }
+        parsePublicKey(value, 'Config PDA');
+        nextTarget = { mode: 'config', value };
+      }
+    } catch (err) {
+      setError(extractErrorMessage(err));
+      return;
+    }
+
+    setBusyLabel('Load Target');
+    setError('');
+    setNotice('');
+    setActiveTarget(nextTarget);
+    syncTargetDraft(nextTarget);
+    const loaded = await refresh(nextTarget);
+    if (loaded) {
+      setNotice(`Loaded ${describeTarget(nextTarget)}.`);
+    }
+    setBusyLabel(null);
+  }, [program, refresh, syncTargetDraft, targetMode, targetValue]);
+
+  const handleResetTarget = useCallback(async () => {
+    setTargetMode('legacy');
+    setTargetValue('');
+    setBusyLabel('Load Target');
+    setError('');
+    setNotice('');
+    const nextTarget: StablecoinTarget = { mode: 'legacy' };
+    setActiveTarget(nextTarget);
+    const loaded = await refresh(nextTarget);
+    if (loaded) {
+      setNotice('Loaded legacy singleton target.');
+    }
+    setBusyLabel(null);
+  }, [refresh]);
 
   const handleInitialize = async () => {
     if (!program) {
@@ -292,10 +558,19 @@ export function DashboardShell({
       transferHookProgram: enableTransferHook
         ? parsePublicKey(initForm.transferHookProgram, 'Transfer hook program')
         : undefined,
+      stablecoinSeed: initForm.stablecoinSeed.trim() || undefined,
     };
 
     await runAction('Initialize', async () => {
       await SolanaStablecoin.create(program, params);
+      const nextTarget: StablecoinTarget = params.stablecoinSeed
+        ? { mode: 'seed', value: params.stablecoinSeed }
+        : { mode: 'legacy' };
+      setInitForm((prev) => ({ ...prev, stablecoinSeed: params.stablecoinSeed ?? prev.stablecoinSeed }));
+      return {
+        nextTarget,
+        message: `Initialized ${describeTarget(nextTarget)}.`,
+      };
     });
   };
 
@@ -535,6 +810,7 @@ export function DashboardShell({
   const statusCards = useMemo(
     () => [
       { label: 'Program ID', value: DEFAULT_PROGRAM_ID_STRING },
+      { label: 'Target', value: describeTarget(activeTarget) },
       { label: 'Config PDA', value: stablecoin ? stablecoin.getConfigPda().toBase58() : null },
       { label: 'Mint PDA', value: stablecoin ? stablecoin.getMintPda().toBase58() : null },
       { label: 'Authority', value: state ? state.authority.toBase58() : null },
@@ -543,8 +819,10 @@ export function DashboardShell({
       { label: 'Transfer Hook', value: state ? (state.enableTransferHook ? 'Enabled' : 'Disabled') : null },
       { label: 'Permanent Delegate', value: state ? (state.enablePermanentDelegate ? 'Enabled' : 'Disabled') : null },
       { label: 'Default Frozen', value: state ? (state.defaultAccountFrozen ? 'Enabled' : 'Disabled') : null },
+      { label: 'Config Version', value: state ? `V${state.version}` : null },
+      { label: 'Stablecoin Seed', value: state ? formatStablecoinSeed(state.stablecoinSeed, state.version) : null },
     ],
-    [stablecoin, state, supply],
+    [activeTarget, stablecoin, state, supply],
   );
 
   const summaryText = isInitialized
@@ -587,6 +865,7 @@ export function DashboardShell({
           <div className="mt-4 space-y-3 text-sm text-neutral-700">
             <div><span className="font-medium text-neutral-900">Wallet:</span> {walletAddress}</div>
             <div><span className="font-medium text-neutral-900">RPC:</span> {DEFAULT_RPC_ENDPOINT}</div>
+            <div><span className="font-medium text-neutral-900">Target:</span> {describeTarget(activeTarget)}</div>
             <div><span className="font-medium text-neutral-900">Transfer Hook Program:</span> {DEFAULT_TRANSFER_HOOK_PROGRAM_ID_STRING}</div>
             <div><span className="font-medium text-neutral-900">Compliance Path:</span> Blacklist enforcement + permanent delegate seizure via Token-2022.</div>
           </div>
@@ -670,6 +949,18 @@ export function DashboardShell({
                   className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 outline-none transition focus:border-neutral-900"
                   placeholder="https://..."
                 />
+              </label>
+              <label className="block text-sm text-neutral-700 sm:col-span-2">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Stablecoin Seed (V2 Optional)</span>
+                <input
+                  value={initForm.stablecoinSeed}
+                  onChange={(event) => setInitForm((prev) => ({ ...prev, stablecoinSeed: event.target.value }))}
+                  placeholder="Leave blank for legacy singleton, or enter a seed for V2"
+                  className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 outline-none transition focus:border-neutral-900"
+                />
+                <span className="mt-2 block text-xs leading-6 text-neutral-500">
+                  A non-empty seed creates a separate V2 stablecoin under the same deployed program. The dashboard will switch to that target after initialization.
+                </span>
               </label>
             </div>
           </div>
@@ -1050,6 +1341,64 @@ export function DashboardShell({
           ? renderTreasury()
           : renderCompliance();
 
+  const renderTargetPanel = () => (
+    <div className="mb-6 rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Stablecoin Target</div>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-600">
+            Legacy mode loads the original singleton config. Seed mode loads a V2 stablecoin by its stablecoin seed, and config mode loads an explicit config PDA directly.
+          </p>
+        </div>
+        <div className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700">
+          Active: {describeTarget(activeTarget)}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-[0.8fr_1.2fr_auto_auto]">
+        <select
+          value={targetMode}
+          onChange={(event) => setTargetMode(event.target.value as StablecoinTarget['mode'])}
+          className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none transition focus:border-neutral-900"
+        >
+          <option value="legacy">Legacy Singleton</option>
+          <option value="seed">Load By Seed</option>
+          <option value="config">Load By Config</option>
+        </select>
+
+        {targetMode === 'legacy' ? (
+          <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm leading-7 text-neutral-600">
+            The legacy target derives config from the original global `CONFIG_SEED` PDA.
+          </div>
+        ) : (
+          <input
+            value={targetValue}
+            onChange={(event) => setTargetValue(event.target.value)}
+            placeholder={targetMode === 'seed' ? 'Stablecoin seed' : 'Config PDA'}
+            className="w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm outline-none transition focus:border-neutral-900"
+          />
+        )}
+
+        <button
+          onClick={() => void handleLoadTarget()}
+          disabled={Boolean(busyLabel)}
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {renderBusy('Load Target') ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          Load target
+        </button>
+
+        <button
+          onClick={() => void handleResetTarget()}
+          disabled={Boolean(busyLabel)}
+          className="inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 px-5 py-3 text-sm font-semibold text-neutral-800 transition hover:border-neutral-900 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          Reset to legacy
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex h-screen overflow-hidden bg-[#Fdfdfc]">
       <aside className="hidden w-72 shrink-0 border-r border-neutral-200 bg-white xl:flex xl:flex-col xl:justify-between">
@@ -1115,6 +1464,7 @@ export function DashboardShell({
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 md:px-8 md:py-8">
+          {renderTargetPanel()}
           {error && (
             <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
               {error}

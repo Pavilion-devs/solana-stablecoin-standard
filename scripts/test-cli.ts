@@ -11,7 +11,10 @@ const TEST_TIMEOUT_MS = 60_000;
 async function main(): Promise<void> {
   const portBase = await reservePortBlock(40);
   const rpcPort = portBase;
+  // Solana RPC clients derive the websocket endpoint as rpcPort + 1.
+  // Keep that port free and move gossip away from it.
   const faucetPort = portBase + 2;
+  const gossipPort = portBase + 3;
   const dynamicPortStart = portBase + 10;
   const dynamicPortEnd = portBase + 39;
   const rpcUrl = `http://127.0.0.1:${rpcPort}`;
@@ -82,6 +85,8 @@ async function main(): Promise<void> {
         ledgerDir,
         "--bind-address",
         "127.0.0.1",
+        "--gossip-port",
+        String(gossipPort),
         "--rpc-port",
         String(rpcPort),
         "--faucet-port",

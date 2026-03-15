@@ -88,4 +88,7 @@ pub enum StablecoinError {
 
     #[msg("Insufficient balance")]
     InsufficientBalance,
+
+    #[msg("Invalid config PDA")]
+    InvalidConfigPda,
 }

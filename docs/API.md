@@ -36,6 +36,13 @@ Health check endpoint.
 
 ### Mint/Burn Operations
 
+All mint, burn, and compliance endpoints can be scoped to a specific stablecoin instance by passing exactly one of:
+
+- `config`
+- `stablecoin_seed`
+
+If neither is provided, the backend falls back to the configured default target or the legacy singleton.
+
 #### POST /api/mint/request
 
 Request a mint operation (fiat-to-stablecoin).
@@ -45,7 +52,8 @@ Request a mint operation (fiat-to-stablecoin).
 {
   "recipient": "RecipientPubkey...",
   "amount": 1000000000,
-  "reference": "BANK-TRANSFER-123"
+  "reference": "BANK-TRANSFER-123",
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -55,6 +63,10 @@ Request a mint operation (fiat-to-stablecoin).
   "request_id": "MINT-000001",
   "recipient": "RecipientPubkey...",
   "amount": 1000000000,
+  "target": {
+    "config": null,
+    "stablecoin_seed": "issuer-a"
+  },
   "status": "pending",
   "created_at": "2024-02-27T00:00:00Z"
 }
@@ -68,7 +80,8 @@ Execute mint operation (after verification).
 ```json
 {
   "recipient": "RecipientPubkey...",
-  "amount": 1000000000
+  "amount": 1000000000,
+  "config": "ConfigPdaPubkey..."
 }
 ```
 
@@ -78,6 +91,11 @@ Execute mint operation (after verification).
   "success": true,
   "request_id": "req_abc123",
   "status": "completed",
+  "tx_signature": "5abc...",
+  "target": {
+    "config": "ConfigPdaPubkey...",
+    "stablecoin_seed": null
+  },
   "message": "Tokens minted successfully"
 }
 ```
@@ -90,7 +108,8 @@ Execute burn operation (stablecoin-to-fiat).
 ```json
 {
   "amount": 1000000000,
-  "reason": "Redemption request #456"
+  "reason": "Redemption request #456",
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -100,6 +119,12 @@ Execute burn operation (stablecoin-to-fiat).
   "success": true,
   "request_id": "req_def456",
   "status": "completed",
+  "amount": 1000000000,
+  "tx_signature": "6def...",
+  "target": {
+    "config": null,
+    "stablecoin_seed": "issuer-a"
+  },
   "message": "Tokens burned successfully"
 }
 ```
@@ -158,7 +183,12 @@ Subscribe to webhook notifications.
 
 #### GET /api/compliance/blacklist
 
-Get all blacklisted addresses.
+Get all blacklisted addresses for a target.
+
+**Query Parameters:**
+
+- `config=ConfigPdaPubkey...`
+- or `stablecoin_seed=issuer-a`
 
 **Response:**
 ```json
@@ -168,7 +198,9 @@ Get all blacklisted addresses.
       "address": "BlacklistedPubkey...",
       "reason": "OFAC SDN List match",
       "added_at": "2024-02-27T00:00:00Z",
-      "source": "ofac"
+      "source": "ofac",
+      "config": null,
+      "stablecoin_seed": "issuer-a"
     }
   ],
   "total": 1
@@ -184,7 +216,8 @@ Add address to blacklist.
 {
   "address": "TargetPubkey...",
   "reason": "OFAC SDN List match - Entity XYZ",
-  "source": "ofac"
+  "source": "ofac",
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -194,7 +227,9 @@ Add address to blacklist.
   "address": "TargetPubkey...",
   "reason": "OFAC SDN List match - Entity XYZ",
   "added_at": "2024-02-27T00:00:00Z",
-  "source": "ofac"
+  "source": "ofac",
+  "config": null,
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -205,7 +240,8 @@ Remove address from blacklist.
 **Request:**
 ```json
 {
-  "address": "TargetPubkey..."
+  "address": "TargetPubkey...",
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -215,7 +251,9 @@ Remove address from blacklist.
   "address": "TargetPubkey...",
   "reason": "",
   "added_at": "2024-02-27T00:00:00Z",
-  "source": ""
+  "source": "",
+  "config": null,
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -226,7 +264,8 @@ Check if address is blacklisted.
 **Request:**
 ```json
 {
-  "address": "TargetPubkey..."
+  "address": "TargetPubkey...",
+  "stablecoin_seed": "issuer-a"
 }
 ```
 
@@ -234,6 +273,10 @@ Check if address is blacklisted.
 ```json
 {
   "address": "TargetPubkey...",
+  "target": {
+    "config": null,
+    "stablecoin_seed": "issuer-a"
+  },
   "is_blacklisted": true,
   "reason": "OFAC SDN List match"
 }

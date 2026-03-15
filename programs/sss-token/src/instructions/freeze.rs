@@ -12,8 +12,7 @@ use crate::{
 #[derive(Accounts)]
 pub struct FreezeAccount<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = !config.paused @ StablecoinError::TokenPaused,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -39,8 +38,7 @@ pub struct FreezeAccount<'info> {
 #[derive(Accounts)]
 pub struct ThawAccount<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = !config.paused @ StablecoinError::TokenPaused,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -64,12 +62,6 @@ pub struct ThawAccount<'info> {
 }
 
 pub fn freeze_account(ctx: Context<FreezeAccount>) -> Result<()> {
-    let config = &ctx.accounts.config;
-    let config_bump = config.bump;
-    let config_bump_bytes = [config_bump];
-    let seeds: &[&[u8]] = &[CONFIG_SEED, &config_bump_bytes];
-    let signer_seeds = &[&seeds[..]];
-
     let freeze_ix = instruction::freeze_account(
         &ctx.accounts.token_2022_program.key(),
         &ctx.accounts.token_account.key(),
@@ -78,15 +70,17 @@ pub fn freeze_account(ctx: Context<FreezeAccount>) -> Result<()> {
         &[],
     )?;
 
-    invoke_signed(
-        &freeze_ix,
-        &[
-            ctx.accounts.token_account.to_account_info(),
-            ctx.accounts.mint.to_account_info(),
-            ctx.accounts.config.to_account_info(),
-        ],
-        signer_seeds,
-    )?;
+    ctx.accounts.config.with_signer_seeds(|seeds| {
+        invoke_signed(
+            &freeze_ix,
+            &[
+                ctx.accounts.token_account.to_account_info(),
+                ctx.accounts.mint.to_account_info(),
+                ctx.accounts.config.to_account_info(),
+            ],
+            &[seeds],
+        )
+    })?;
 
     emit!(AccountFrozen {
         config: ctx.accounts.config.key(),
@@ -98,12 +92,6 @@ pub fn freeze_account(ctx: Context<FreezeAccount>) -> Result<()> {
 }
 
 pub fn thaw_account(ctx: Context<ThawAccount>) -> Result<()> {
-    let config = &ctx.accounts.config;
-    let config_bump = config.bump;
-    let config_bump_bytes = [config_bump];
-    let seeds: &[&[u8]] = &[CONFIG_SEED, &config_bump_bytes];
-    let signer_seeds = &[&seeds[..]];
-
     let thaw_ix = instruction::thaw_account(
         &ctx.accounts.token_2022_program.key(),
         &ctx.accounts.token_account.key(),
@@ -112,15 +100,17 @@ pub fn thaw_account(ctx: Context<ThawAccount>) -> Result<()> {
         &[],
     )?;
 
-    invoke_signed(
-        &thaw_ix,
-        &[
-            ctx.accounts.token_account.to_account_info(),
-            ctx.accounts.mint.to_account_info(),
-            ctx.accounts.config.to_account_info(),
-        ],
-        signer_seeds,
-    )?;
+    ctx.accounts.config.with_signer_seeds(|seeds| {
+        invoke_signed(
+            &thaw_ix,
+            &[
+                ctx.accounts.token_account.to_account_info(),
+                ctx.accounts.mint.to_account_info(),
+                ctx.accounts.config.to_account_info(),
+            ],
+            &[seeds],
+        )
+    })?;
 
     emit!(AccountThawed {
         config: ctx.accounts.config.key(),

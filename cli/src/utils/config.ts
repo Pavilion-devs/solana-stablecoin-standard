@@ -10,6 +10,8 @@ export interface Config {
   symbol: string;
   decimals: number;
   network: string;
+  stablecoinSeed?: string;
+  version?: number;
 }
 
 const CONFIG_FILE = '.sss-token.json';
@@ -42,6 +44,7 @@ export interface InitConfigFile {
   enableTransferHook?: boolean;
   transferHookProgram?: string;
   defaultFrozen?: boolean;
+  stablecoinSeed?: string;
   programId?: string;
   rpc?: string;
 }
@@ -124,6 +127,7 @@ function normalizeInitConfig(raw: Record<string, any>): InitConfigFile {
         merged.defaultAccountFrozen ??
         merged.default_account_frozen
     ),
+    stablecoinSeed: asString(merged.stablecoinSeed ?? merged.stablecoin_seed),
     programId: asString(merged.programId ?? merged.program_id),
     rpc: asString(merged.rpc ?? merged.rpcUrl ?? merged.rpc_url),
   };

@@ -24,6 +24,10 @@ describe("CLI integration", function () {
   const idlPath = path.join(projectRoot, "target", "idl", "sss_token.json");
   const configPath = path.join(testHome, ".sss-token.json");
   const customConfigPath = path.join(testHome, "stablecoin.toml");
+  const alphaConfigPath = path.join(testHome, "stablecoin-alpha.toml");
+  const betaConfigPath = path.join(testHome, "stablecoin-beta.toml");
+  const alphaSeed = "alpha-usd";
+  const betaSeed = "beta-usd";
   const wallet = loadKeypair(walletPath);
   const walletPubkey = wallet.publicKey.toBase58();
   const provider = new anchor.AnchorProvider(
@@ -34,6 +38,7 @@ describe("CLI integration", function () {
   const idl = JSON.parse(fs.readFileSync(idlPath, "utf8"));
   idl.address = programId;
   const program = new anchor.Program(idl, provider);
+  const CONFIG_SEED = Buffer.from("config");
   const ROLE_SEED = Buffer.from("role");
 
   before(() => {
@@ -54,6 +59,40 @@ describe("CLI integration", function () {
         "enable_permanent_delegate = true",
         "enable_transfer_hook = true",
         `transfer_hook_program = "${transferHookProgramId}"`,
+        "default_frozen = false",
+        `rpc = "${rpcUrl}"`,
+        `program_id = "${programId}"`,
+        "",
+      ].join("\n")
+    );
+    fs.writeFileSync(
+      alphaConfigPath,
+      [
+        'preset = "custom"',
+        'name = "Alpha USD"',
+        'symbol = "AUSD"',
+        "decimals = 6",
+        'uri = ""',
+        `stablecoin_seed = "${alphaSeed}"`,
+        "enable_permanent_delegate = false",
+        "enable_transfer_hook = false",
+        "default_frozen = false",
+        `rpc = "${rpcUrl}"`,
+        `program_id = "${programId}"`,
+        "",
+      ].join("\n")
+    );
+    fs.writeFileSync(
+      betaConfigPath,
+      [
+        'preset = "custom"',
+        'name = "Beta USD"',
+        'symbol = "BUSD"',
+        "decimals = 6",
+        'uri = ""',
+        `stablecoin_seed = "${betaSeed}"`,
+        "enable_permanent_delegate = false",
+        "enable_transfer_hook = false",
         "default_frozen = false",
         `rpc = "${rpcUrl}"`,
         `program_id = "${programId}"`,
@@ -145,6 +184,108 @@ describe("CLI integration", function () {
     expect(output).to.contain("Total Supply: 5000000");
   });
 
+  it("targets multiple V2 configs with --stablecoin-seed and --config", () => {
+    const alphaConfig = deriveConfig(alphaSeed);
+    const betaConfig = deriveConfig(betaSeed);
+
+    const initAlphaOutput = runCli([
+      "init",
+      "--custom",
+      alphaConfigPath,
+      "--keypair",
+      walletPath,
+    ]);
+    expect(initAlphaOutput).to.contain(`Config PDA: ${alphaConfig.toBase58()}`);
+    expect(initAlphaOutput).to.contain(`Stablecoin Seed: ${alphaSeed}`);
+
+    const initBetaOutput = runCli([
+      "init",
+      "--custom",
+      betaConfigPath,
+      "--keypair",
+      walletPath,
+    ]);
+    expect(initBetaOutput).to.contain(`Config PDA: ${betaConfig.toBase58()}`);
+    expect(initBetaOutput).to.contain(`Stablecoin Seed: ${betaSeed}`);
+    expect(alphaConfig.toBase58()).to.not.equal(betaConfig.toBase58());
+
+    const addMinterOutput = runCli([
+      "minters",
+      "add",
+      walletPubkey,
+      "1000000000",
+      "--rpc",
+      rpcUrl,
+      "--keypair",
+      walletPath,
+      "--config",
+      alphaConfig.toBase58(),
+    ]);
+    expect(addMinterOutput).to.contain(`Added minter ${walletPubkey}`);
+
+    const mintOutput = runCli([
+      "mint",
+      walletPubkey,
+      "7000000",
+      "--rpc",
+      rpcUrl,
+      "--keypair",
+      walletPath,
+      "--stablecoin-seed",
+      alphaSeed,
+    ]);
+    expect(mintOutput).to.contain("Minted 7000000 tokens");
+
+    const alphaStatus = runCli([
+      "status",
+      "--rpc",
+      rpcUrl,
+      "--config",
+      alphaConfig.toBase58(),
+    ]);
+    expect(alphaStatus).to.contain("Name: Alpha USD");
+    expect(alphaStatus).to.contain("Symbol: AUSD");
+    expect(alphaStatus).to.contain("Total Supply: 7000000");
+    expect(alphaStatus).to.contain(`Config: ${alphaConfig.toBase58()}`);
+
+    const betaStatus = runCli([
+      "status",
+      "--rpc",
+      rpcUrl,
+      "--stablecoin-seed",
+      betaSeed,
+    ]);
+    expect(betaStatus).to.contain("Name: Beta USD");
+    expect(betaStatus).to.contain("Symbol: BUSD");
+    expect(betaStatus).to.contain("Total Supply: 0");
+    expect(betaStatus).to.contain(`Config: ${betaConfig.toBase58()}`);
+
+    const alphaHolders = runCli([
+      "holders",
+      "--rpc",
+      rpcUrl,
+      "--config",
+      alphaConfig.toBase58(),
+      "--min-balance",
+      "1",
+    ]);
+    expect(alphaHolders).to.contain("Matching holders: 1");
+    expect(alphaHolders).to.contain(`owner=${walletPubkey}`);
+    expect(alphaHolders).to.contain("amount=7000000");
+
+    const betaHolders = runCli([
+      "holders",
+      "--rpc",
+      rpcUrl,
+      "--stablecoin-seed",
+      betaSeed,
+      "--min-balance",
+      "1",
+    ]);
+    expect(betaHolders).to.contain("Matching holders: 0");
+    expect(betaHolders).to.contain("No holders matched the current filter.");
+  });
+
   function runCli(args: string[]): string {
     try {
       return execFileSync("node", [cliEntrypoint, ...args], {
@@ -153,6 +294,14 @@ describe("CLI integration", function () {
           ...process.env,
           HOME: testHome,
           SOLANA_KEYPAIR: walletPath,
+          HTTP_PROXY: "",
+          HTTPS_PROXY: "",
+          ALL_PROXY: "",
+          http_proxy: "",
+          https_proxy: "",
+          all_proxy: "",
+          NO_PROXY: "127.0.0.1,localhost",
+          no_proxy: "127.0.0.1,localhost",
         },
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
@@ -209,6 +358,23 @@ describe("CLI integration", function () {
     const tx = new anchor.web3.Transaction().add(instruction);
     const signature = await provider.sendAndConfirm(tx, [wallet]);
     await provider.connection.confirmTransaction(signature, "confirmed");
+  }
+
+  function deriveConfig(seed: string): PublicKey {
+    return PublicKey.findProgramAddressSync(
+      [CONFIG_SEED, normalizeSeed(seed)],
+      new PublicKey(programId)
+    )[0];
+  }
+
+  function normalizeSeed(seed: string): Buffer {
+    const bytes = Buffer.from(seed, "utf8");
+    if (bytes.length > 32) {
+      throw new Error(`Seed too long for test: ${seed}`);
+    }
+    const normalized = Buffer.alloc(32);
+    bytes.copy(normalized);
+    return normalized;
   }
 });
 

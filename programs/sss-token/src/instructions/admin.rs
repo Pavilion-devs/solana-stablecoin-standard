@@ -1,5 +1,5 @@
 use crate::{
-    constants::*, error::StablecoinError, events::AuthorityTransferred, state::StablecoinConfig,
+    error::StablecoinError, events::AuthorityTransferred, state::StablecoinConfig,
 };
 use anchor_lang::prelude::*;
 
@@ -7,8 +7,7 @@ use anchor_lang::prelude::*;
 pub struct TransferAuthority<'info> {
     #[account(
         mut,
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.authority == authority.key() @ StablecoinError::Unauthorized,
     )]
     pub config: Account<'info, StablecoinConfig>,

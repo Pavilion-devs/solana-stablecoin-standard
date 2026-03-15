@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use tokio::process::Command;
 
-use crate::Config;
+use crate::{types::StablecoinTarget, Config};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExecutionOutput {
@@ -49,45 +49,61 @@ impl BackendExecutor {
     pub async fn mint(
         &self,
         config: &Config,
+        target: &StablecoinTarget,
         recipient: &str,
         amount: u64,
     ) -> anyhow::Result<ExecutionOutput> {
         match self {
             Self::Cli(cli) => {
-                self.run_cli(
-                    cli,
-                    ["mint", recipient, &amount.to_string(), "--rpc", &config.rpc_url],
-                )
-                .await
+                let mut args = vec![
+                    "mint".to_string(),
+                    recipient.to_string(),
+                    amount.to_string(),
+                    "--rpc".to_string(),
+                    config.rpc_url.clone(),
+                ];
+                append_target_args(&mut args, target);
+                self.run_cli(cli, args).await
             }
             Self::Mock => Ok(ExecutionOutput {
-                signature: format!("mock-mint-{recipient}-{amount}"),
+                signature: format!("mock-mint-{recipient}-{amount}-{}", target.scope_key()),
                 stdout: "mock mint executed".to_string(),
             }),
         }
     }
 
-    pub async fn burn(&self, config: &Config, amount: u64) -> anyhow::Result<ExecutionOutput> {
+    pub async fn burn(
+        &self,
+        config: &Config,
+        target: &StablecoinTarget,
+        amount: u64,
+    ) -> anyhow::Result<ExecutionOutput> {
         match self {
             Self::Cli(cli) => {
-                self.run_cli(cli, ["burn", &amount.to_string(), "--rpc", &config.rpc_url])
-                    .await
+                let mut args = vec![
+                    "burn".to_string(),
+                    amount.to_string(),
+                    "--rpc".to_string(),
+                    config.rpc_url.clone(),
+                ];
+                append_target_args(&mut args, target);
+                self.run_cli(cli, args).await
             }
             Self::Mock => Ok(ExecutionOutput {
-                signature: format!("mock-burn-{amount}"),
+                signature: format!("mock-burn-{amount}-{}", target.scope_key()),
                 stdout: "mock burn executed".to_string(),
             }),
         }
     }
 
-    async fn run_cli<const N: usize>(
+    async fn run_cli(
         &self,
         cli: &CliExecutorConfig,
-        args: [&str; N],
+        args: Vec<String>,
     ) -> anyhow::Result<ExecutionOutput> {
         let output = Command::new(&cli.node_binary)
             .arg(&cli.cli_entrypoint)
-            .args(args)
+            .args(&args)
             .arg("--keypair")
             .arg(&cli.keypair_path)
             .current_dir(&cli.cli_workdir)
@@ -121,4 +137,14 @@ fn extract_signature(stdout: &str) -> Option<String> {
             .map(str::trim)
             .map(ToOwned::to_owned)
     })
+}
+
+fn append_target_args(args: &mut Vec<String>, target: &StablecoinTarget) {
+    if let Some(config) = &target.config {
+        args.push("--config".to_string());
+        args.push(config.clone());
+    } else if let Some(seed) = &target.stablecoin_seed {
+        args.push("--stablecoin-seed".to_string());
+        args.push(seed.clone());
+    }
 }

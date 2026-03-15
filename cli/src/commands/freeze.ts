@@ -1,17 +1,22 @@
 import { Command } from 'commander';
 import { PublicKey } from '@solana/web3.js';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
-export const freezeCommand = new Command('freeze')
+export const freezeCommand = addStablecoinTargetOptions(new Command('freeze')
   .description('Freeze or thaw a token account')
   .argument('<address>', 'Address to freeze/thaw')
   .option('--thaw', 'Thaw the account instead of freezing')
   .option('-k, --keypair <path>', 'Path to freezer keypair')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (address: string, options) => {
     try {
       const owner = new PublicKey(address);
-      const { stablecoin, wallet } = await loadStablecoinContext(options.rpc, options.keypair);
+      const { stablecoin, wallet } = await loadStablecoinContext(
+        options.rpc,
+        options.keypair,
+        pickStablecoinTargetOptions(options)
+      );
 
       if (options.thaw) {
         const signature = await stablecoin.thawAccount(owner, wallet);

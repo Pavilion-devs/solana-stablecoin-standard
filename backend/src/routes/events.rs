@@ -23,12 +23,10 @@ pub struct EventsResponse {
     pub total: usize,
 }
 
-pub async fn get_events(
-    State(state): State<AppState>,
-) -> Json<EventsResponse> {
+pub async fn get_events(State(state): State<AppState>) -> Json<EventsResponse> {
     let events = state.event_log.read().await.clone();
     let total = events.len();
-    
+
     Json(EventsResponse { events, total })
 }
 

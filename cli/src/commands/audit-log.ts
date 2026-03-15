@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
 interface SignatureSummary {
   signature: string;
@@ -7,11 +8,11 @@ interface SignatureSummary {
   blockTime: number | null;
 }
 
-export const auditLogCommand = new Command('audit-log')
+export const auditLogCommand = addStablecoinTargetOptions(new Command('audit-log')
   .description('Show recent on-chain activity for the configured stablecoin')
   .option('-l, --limit <count>', 'Maximum number of entries to display', '20')
   .option('-a, --action <type>', 'Only show entries that include this instruction/action')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (options) => {
     try {
       const limit = Number(options.limit);
@@ -23,7 +24,11 @@ export const auditLogCommand = new Command('audit-log')
           ? normalizeInstructionLabel(options.action)
           : undefined;
 
-      const { stablecoin, connection } = await loadStablecoinContext(options.rpc);
+      const { stablecoin, connection } = await loadStablecoinContext(
+        options.rpc,
+        undefined,
+        pickStablecoinTargetOptions(options)
+      );
       const fetchLimit = Math.max(limit * 2, 20);
       const [configSignatures, mintSignatures] = await Promise.all([
         connection.getSignaturesForAddress(stablecoin.getConfigPda(), { limit: fetchLimit }, 'confirmed'),

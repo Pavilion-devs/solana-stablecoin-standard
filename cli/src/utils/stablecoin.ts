@@ -4,8 +4,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SolanaStablecoin } from '@stbr/sss-token';
 
-import { loadConfig } from './config';
+import { type Config, loadConfig } from './config';
 import { getConnection, getWallet } from './rpc';
+import { type StablecoinTargetOptions } from './target';
 
 const DEFAULT_PROGRAM_ID = 'CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe';
 const DEFAULT_IDL_PATH = path.resolve(process.cwd(), 'target', 'idl', 'sss_token.json');
@@ -68,15 +69,69 @@ export function createProgramContext(
 
 export async function loadStablecoinContext(
   rpcUrl?: string,
-  keypairPath?: string
+  keypairPath?: string,
+  target?: StablecoinTargetOptions
 ): Promise<ProgramContext & { stablecoin: SolanaStablecoin }> {
   const saved = loadConfig();
-  if (!saved) {
-    throw new Error("Stablecoin config not found. Run 'sss-token init' first.");
+  const { programId, loadOptions } = resolveStablecoinTarget(saved, target);
+
+  const ctx = createProgramContext(rpcUrl, keypairPath, programId);
+
+  try {
+    const stablecoin = loadOptions
+      ? await SolanaStablecoin.loadWithOptions(ctx.program, loadOptions)
+      : await SolanaStablecoin.load(ctx.program);
+
+    return { ...ctx, stablecoin };
+  } catch (err) {
+    if (!saved && !loadOptions) {
+      throw new Error(
+        "Stablecoin config not found. Run 'sss-token init' first or pass --config / --stablecoin-seed."
+      );
+    }
+    throw err;
+  }
+}
+
+function resolveStablecoinTarget(
+  saved: Config | null,
+  target?: StablecoinTargetOptions
+): {
+  programId?: string;
+  loadOptions?: Parameters<typeof SolanaStablecoin.loadWithOptions>[1];
+} {
+  if (target?.config && target?.stablecoinSeed) {
+    throw new Error('pass either --config or --stablecoin-seed, not both');
   }
 
-  const ctx = createProgramContext(rpcUrl, keypairPath, saved.programId);
-  const stablecoin = await SolanaStablecoin.load(ctx.program);
+  const programId = target?.programId ?? saved?.programId;
+  if (target?.config) {
+    return {
+      programId,
+      loadOptions: { config: new PublicKey(target.config) },
+    };
+  }
 
-  return { ...ctx, stablecoin };
+  if (target?.stablecoinSeed) {
+    return {
+      programId,
+      loadOptions: { stablecoinSeed: target.stablecoinSeed },
+    };
+  }
+
+  if (saved?.configPda) {
+    return {
+      programId,
+      loadOptions: { config: new PublicKey(saved.configPda) },
+    };
+  }
+
+  if (saved?.stablecoinSeed) {
+    return {
+      programId,
+      loadOptions: { stablecoinSeed: saved.stablecoinSeed },
+    };
+  }
+
+  return { programId };
 }

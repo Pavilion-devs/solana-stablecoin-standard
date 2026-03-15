@@ -36,6 +36,30 @@ pub mod sss_token {
         )
     }
 
+    pub fn initialize_v2(
+        ctx: Context<InitializeV2>,
+        name: String,
+        symbol: String,
+        uri: String,
+        decimals: u8,
+        enable_permanent_delegate: bool,
+        enable_transfer_hook: bool,
+        default_account_frozen: bool,
+        stablecoin_seed: [u8; 32],
+    ) -> Result<()> {
+        instructions::initialize::handler_v2(
+            ctx,
+            name,
+            symbol,
+            uri,
+            decimals,
+            enable_permanent_delegate,
+            enable_transfer_hook,
+            default_account_frozen,
+            stablecoin_seed,
+        )
+    }
+
     pub fn mint(ctx: Context<Mint>, amount: u64) -> Result<()> {
         instructions::mint::handler(ctx, amount)
     }

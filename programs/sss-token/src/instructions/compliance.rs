@@ -14,8 +14,7 @@ use crate::{
 #[instruction(address: Pubkey)]
 pub struct AddToBlacklist<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.enable_transfer_hook @ StablecoinError::ComplianceNotEnabled,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -73,8 +72,7 @@ pub fn add_to_blacklist(
 #[instruction(address: Pubkey)]
 pub struct RemoveFromBlacklist<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.enable_transfer_hook @ StablecoinError::ComplianceNotEnabled,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -114,8 +112,7 @@ pub fn remove_from_blacklist(ctx: Context<RemoveFromBlacklist>, address: Pubkey)
 #[derive(Accounts)]
 pub struct Seize<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.enable_permanent_delegate @ StablecoinError::PermanentDelegateNotEnabled,
         constraint = !config.paused @ StablecoinError::TokenPaused,
     )]
@@ -154,10 +151,6 @@ pub fn seize<'info>(
     require!(amount > 0, StablecoinError::ZeroAmount);
 
     let config = &ctx.accounts.config;
-    let config_bump = config.bump;
-    let config_bump_bytes = [config_bump];
-    let seeds: &[&[u8]] = &[CONFIG_SEED, &config_bump_bytes];
-    let signer_seeds = &[&seeds[..]];
 
     let mut transfer_ix = transfer_checked(
         &ctx.accounts.token_2022_program.key(),
@@ -232,11 +225,9 @@ pub fn seize<'info>(
         account_infos.push(extra_account_meta_list);
     }
 
-    invoke_signed(
-        &transfer_ix,
-        &account_infos,
-        signer_seeds,
-    )?;
+    ctx.accounts
+        .config
+        .with_signer_seeds(|seeds| invoke_signed(&transfer_ix, &account_infos, &[seeds]))?;
 
     emit!(Seized {
         config: ctx.accounts.config.key(),

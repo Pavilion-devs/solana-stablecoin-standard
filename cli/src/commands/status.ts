@@ -1,12 +1,17 @@
 import { Command } from 'commander';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
-export const statusCommand = new Command('status')
+export const statusCommand = addStablecoinTargetOptions(new Command('status')
   .description('Show stablecoin status and configuration')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (options) => {
     try {
-      const { stablecoin } = await loadStablecoinContext(options.rpc);
+      const { stablecoin } = await loadStablecoinContext(
+        options.rpc,
+        undefined,
+        pickStablecoinTargetOptions(options)
+      );
       const state = await stablecoin.getState();
       const totalSupply = await stablecoin.getTotalSupply();
 
@@ -24,12 +29,16 @@ export const statusCommand = new Command('status')
     }
   });
 
-export const supplyCommand = new Command('supply')
+export const supplyCommand = addStablecoinTargetOptions(new Command('supply')
   .description('Show total token supply')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (options) => {
     try {
-      const { stablecoin } = await loadStablecoinContext(options.rpc);
+      const { stablecoin } = await loadStablecoinContext(
+        options.rpc,
+        undefined,
+        pickStablecoinTargetOptions(options)
+      );
       const totalSupply = await stablecoin.getTotalSupply();
       console.log(`Total Supply: ${totalSupply.toString()}`);
     } catch (err: any) {

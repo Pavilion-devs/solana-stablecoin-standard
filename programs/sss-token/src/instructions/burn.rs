@@ -12,8 +12,7 @@ use crate::{
 #[derive(Accounts)]
 pub struct Burn<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = !config.paused @ StablecoinError::TokenPaused,
     )]
     pub config: Account<'info, StablecoinConfig>,

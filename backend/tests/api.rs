@@ -1,4 +1,7 @@
-use axum::{body::Body, http::{Request, StatusCode}};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use sss_backend::{
@@ -17,6 +20,8 @@ fn test_state() -> AppState {
         rpc_url: "http://127.0.0.1:8899".to_string(),
         program_id: "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe".to_string(),
         treasury: "treasury".to_string(),
+        default_config_pda: None,
+        default_stablecoin_seed: None,
         keypair_path: "keypair.json".to_string(),
         cli_entrypoint: "cli.js".to_string(),
         cli_home: ".".to_string(),
@@ -84,8 +89,46 @@ async fn mint_route_executes_and_records_event() {
     let body = json_body(response).await;
     assert_eq!(body["status"], "completed");
     assert_eq!(body["success"], true);
-    assert_eq!(body["tx_signature"], "mock-mint-RecipientPubkey1111111111111111111111111-42");
+    assert_eq!(
+        body["tx_signature"],
+        "mock-mint-RecipientPubkey1111111111111111111111111-42-legacy"
+    );
+    assert_eq!(body["target"]["config"], Value::Null);
+    assert_eq!(body["target"]["stablecoin_seed"], Value::Null);
     assert_eq!(state.event_log.read().await.len(), 1);
+}
+
+#[tokio::test]
+async fn mint_route_accepts_v2_targeting() {
+    let state = test_state();
+    let app = build_app(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/mint")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "recipient": "RecipientPubkey1111111111111111111111111",
+                        "amount": 42,
+                        "stablecoin_seed": "issuer-a"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+    assert_eq!(
+        body["tx_signature"],
+        "mock-mint-RecipientPubkey1111111111111111111111111-42-seed:issuer-a"
+    );
+    assert_eq!(body["target"]["stablecoin_seed"], "issuer-a");
 }
 
 #[tokio::test]
@@ -146,7 +189,132 @@ async fn burn_route_returns_burn_specific_shape() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert_eq!(body["amount"], 99);
-    assert_eq!(body["tx_signature"], "mock-burn-99");
+    assert_eq!(body["tx_signature"], "mock-burn-99-legacy");
+}
+
+#[tokio::test]
+async fn mint_route_rejects_conflicting_target_parameters() {
+    let state = test_state();
+    let app = build_app(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/mint")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "recipient": "RecipientPubkey1111111111111111111111111",
+                        "amount": 42,
+                        "config": "Cfg11111111111111111111111111111111111111111",
+                        "stablecoin_seed": "issuer-a"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn compliance_blacklist_is_scoped_per_target() {
+    let state = test_state();
+    let app = build_app(state);
+
+    let add_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/compliance/blacklist/add")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "address": "targeted-wallet",
+                        "reason": "Test scope",
+                        "stablecoin_seed": "issuer-a"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(add_response.status(), StatusCode::OK);
+
+    let scoped_list = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/compliance/blacklist?stablecoin_seed=issuer-a")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let scoped_list_body = json_body(scoped_list).await;
+    assert_eq!(scoped_list_body["total"], 1);
+
+    let other_list = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/compliance/blacklist?stablecoin_seed=issuer-b")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let other_list_body = json_body(other_list).await;
+    assert_eq!(other_list_body["total"], 0);
+
+    let scoped_check = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/compliance/check")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "address": "targeted-wallet",
+                        "stablecoin_seed": "issuer-a"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let scoped_check_body = json_body(scoped_check).await;
+    assert_eq!(scoped_check_body["is_blacklisted"], true);
+
+    let other_check = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/compliance/check")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "address": "targeted-wallet",
+                        "stablecoin_seed": "issuer-b"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let other_check_body = json_body(other_check).await;
+    assert_eq!(other_check_body["is_blacklisted"], false);
 }
 
 #[test]

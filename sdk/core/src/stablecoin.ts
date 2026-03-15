@@ -15,8 +15,16 @@ import {
   getMint,
 } from '@solana/spl-token';
 
-import { deriveConfigPda, deriveMintPda, deriveMinterPda, deriveRolePda } from './pda';
-import { Preset, PRESET_CONFIGS, Role } from './constants';
+import {
+  deriveConfigPda,
+  deriveConfigPdaV2,
+  deriveMintPda,
+  deriveMinterPda,
+  deriveRolePda,
+  normalizeStablecoinSeed,
+  type StablecoinSeedInput,
+} from './pda';
+import { Preset, PRESET_CONFIGS, Role, CONFIG_VERSION_V1, CONFIG_VERSION_V2 } from './constants';
 import { Compliance } from './compliance';
 
 export interface StablecoinConfigState {
@@ -29,6 +37,8 @@ export interface StablecoinConfigState {
   enablePermanentDelegate: boolean;
   enableTransferHook: boolean;
   defaultAccountFrozen: boolean;
+  version: number;
+  stablecoinSeed: number[];
   bump: number;
   mintBump: number;
   transferHookProgram: PublicKey | null;
@@ -45,6 +55,12 @@ export interface CreateStablecoinParams {
   enableTransferHook?: boolean;
   transferHookProgram?: PublicKey;
   defaultAccountFrozen?: boolean;
+  stablecoinSeed?: StablecoinSeedInput;
+}
+
+export interface StablecoinLoadOptions {
+  config?: PublicKey;
+  stablecoinSeed?: StablecoinSeedInput;
 }
 
 export interface MintParams {
@@ -83,23 +99,45 @@ export class SolanaStablecoin {
   }
 
   static async load(program: Program): Promise<SolanaStablecoin> {
+    return SolanaStablecoin.loadWithOptions(program);
+  }
+
+  static async loadWithOptions(
+    program: Program,
+    options?: StablecoinLoadOptions
+  ): Promise<SolanaStablecoin> {
     const provider = program.provider as AnchorProvider;
-    const [config] = deriveConfigPda(program.programId);
-    const [mintAddress] = deriveMintPda(program.programId, config);
+    if (options?.config && options?.stablecoinSeed) {
+      throw new Error('pass either config or stablecoinSeed, not both');
+    }
+
+    const config = options?.config
+      ? options.config
+      : options?.stablecoinSeed
+        ? deriveConfigPdaV2(program.programId, options.stablecoinSeed)[0]
+        : deriveConfigPda(program.programId)[0];
 
     const accountNs = program.account as Record<string, { fetch: (addr: PublicKey) => Promise<unknown> }>;
     const state = (await accountNs['stablecoinConfig'].fetch(config)) as StablecoinConfigState;
 
-    return new SolanaStablecoin(program, provider, config, mintAddress, state.decimals);
+    return new SolanaStablecoin(program, provider, config, state.mint, state.decimals);
   }
 
   static async create(
     program: Program,
     params: CreateStablecoinParams,
-    authority?: Keypair
+    authority?: Keypair,
+    options?: StablecoinLoadOptions
   ): Promise<SolanaStablecoin> {
     const provider = program.provider as AnchorProvider;
-    const [config] = deriveConfigPda(program.programId);
+    if (options?.config) {
+      throw new Error('config cannot be passed to create; use stablecoinSeed or load by config');
+    }
+
+    const stablecoinSeed = params.stablecoinSeed ?? options?.stablecoinSeed;
+    const [config] = stablecoinSeed
+      ? deriveConfigPdaV2(program.programId, stablecoinSeed)
+      : deriveConfigPda(program.programId);
     const [mintAddress] = deriveMintPda(program.programId, config);
 
     const presetConfig =
@@ -126,16 +164,28 @@ export class SolanaStablecoin {
       transferHookProgram
     );
 
-    await program.methods
-      .initialize(
-        params.name,
-        params.symbol,
-        params.uri || '',
-        params.decimals || 6,
-        enablePermanentDelegate,
-        enableTransferHook,
-        defaultAccountFrozen
-      )
+    const request = stablecoinSeed
+      ? program.methods.initializeV2(
+          params.name,
+          params.symbol,
+          params.uri || '',
+          params.decimals || 6,
+          enablePermanentDelegate,
+          enableTransferHook,
+          defaultAccountFrozen,
+          Array.from(normalizeStablecoinSeed(stablecoinSeed))
+        )
+      : program.methods.initialize(
+          params.name,
+          params.symbol,
+          params.uri || '',
+          params.decimals || 6,
+          enablePermanentDelegate,
+          enableTransferHook,
+          defaultAccountFrozen
+        );
+
+    await request
       .accountsStrict({
         authority: authority ? authority.publicKey : provider.wallet.publicKey,
         config,
@@ -149,7 +199,7 @@ export class SolanaStablecoin {
       .signers(authority ? [authority] : [])
       .rpc();
 
-    return SolanaStablecoin.load(program);
+    return SolanaStablecoin.loadWithOptions(program, { config });
   }
 
   async refresh(): Promise<StablecoinConfigState> {
@@ -163,6 +213,14 @@ export class SolanaStablecoin {
       await this.refresh();
     }
     return this._state!;
+  }
+
+  isLegacyConfig(): boolean {
+    return (this._state?.version ?? CONFIG_VERSION_V1) === CONFIG_VERSION_V1;
+  }
+
+  isV2Config(): boolean {
+    return (this._state?.version ?? CONFIG_VERSION_V1) === CONFIG_VERSION_V2;
   }
 
   async getTotalSupply(): Promise<bigint> {

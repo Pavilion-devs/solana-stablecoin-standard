@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::constants::{CONFIG_SEED, CONFIG_VERSION_V1, CONFIG_VERSION_V2, STABLECOIN_SEED_LEN};
+
 /// Roles for access control
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Role {
@@ -44,6 +46,10 @@ pub struct StablecoinConfig {
     pub enable_transfer_hook: bool,
     /// Whether accounts are frozen by default (SSS-2)
     pub default_account_frozen: bool,
+    /// Config layout version
+    pub version: u8,
+    /// Stablecoin-specific V2 seed
+    pub stablecoin_seed: [u8; STABLECOIN_SEED_LEN],
     /// PDA bump
     pub bump: u8,
     /// Mint bump
@@ -53,7 +59,7 @@ pub struct StablecoinConfig {
     /// Paused state
     pub paused: bool,
     /// Reserved for future use
-    pub _reserved: [u8; 64],
+    pub _reserved: [u8; 31],
 }
 
 impl StablecoinConfig {
@@ -67,13 +73,49 @@ impl StablecoinConfig {
         1 +    // enable_permanent_delegate
         1 +    // enable_transfer_hook
         1 +    // default_account_frozen
+        1 +    // version
+        32 +   // stablecoin_seed
         1 +    // bump
         1 +    // mint_bump
         1 + 32 +   // transfer_hook_program (Option<Pubkey>)
         1 +    // paused
-        64; // _reserved
+        31; // _reserved
 
     pub const SEED_PREFIX: &'static [u8] = b"config";
+
+    pub fn is_v2(&self) -> bool {
+        self.version == CONFIG_VERSION_V2
+    }
+
+    pub fn matches_pda(&self, program_id: &Pubkey, config_key: &Pubkey) -> bool {
+        let (expected, bump) = if self.is_v2() {
+            Pubkey::find_program_address(&[CONFIG_SEED, self.stablecoin_seed.as_ref()], program_id)
+        } else {
+            Pubkey::find_program_address(&[CONFIG_SEED], program_id)
+        };
+
+        expected == *config_key && bump == self.bump
+    }
+
+    pub fn with_signer_seeds<R>(&self, f: impl FnOnce(&[&[u8]]) -> R) -> R {
+        let bump_bytes = [self.bump];
+
+        if self.is_v2() {
+            let seeds: [&[u8]; 3] = [CONFIG_SEED, self.stablecoin_seed.as_ref(), &bump_bytes];
+            f(&seeds)
+        } else {
+            let seeds: [&[u8]; 2] = [CONFIG_SEED, &bump_bytes];
+            f(&seeds)
+        }
+    }
+
+    pub fn v1_seed() -> [u8; STABLECOIN_SEED_LEN] {
+        [0u8; STABLECOIN_SEED_LEN]
+    }
+
+    pub fn legacy_version() -> u8 {
+        CONFIG_VERSION_V1
+    }
 }
 
 /// Minter with quota tracking

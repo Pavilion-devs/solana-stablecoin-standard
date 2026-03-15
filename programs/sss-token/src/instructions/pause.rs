@@ -10,8 +10,7 @@ use anchor_lang::prelude::*;
 pub struct Pause<'info> {
     #[account(
         mut,
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
     )]
     pub config: Account<'info, StablecoinConfig>,
 

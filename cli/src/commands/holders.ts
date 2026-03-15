@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { getAccount, TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
 interface HolderEntry {
   tokenAccount: string;
@@ -9,11 +10,11 @@ interface HolderEntry {
   frozen: boolean;
 }
 
-export const holdersCommand = new Command('holders')
+export const holdersCommand = addStablecoinTargetOptions(new Command('holders')
   .description('List token holders for the configured stablecoin')
   .option('-l, --limit <count>', 'Maximum number of holders to display', '20')
   .option('-m, --min-balance <amount>', 'Only show holders with at least this raw token balance', '1')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (options) => {
     try {
       const limit = Number(options.limit);
@@ -25,7 +26,11 @@ export const holdersCommand = new Command('holders')
         throw new Error(`Invalid min balance: ${options.minBalance}`);
       }
 
-      const { stablecoin, connection } = await loadStablecoinContext(options.rpc);
+      const { stablecoin, connection } = await loadStablecoinContext(
+        options.rpc,
+        undefined,
+        pickStablecoinTargetOptions(options)
+      );
       const mint = stablecoin.getMintPda();
       const tokenAccounts = await connection.getProgramAccounts(TOKEN_2022_PROGRAM_ID, {
         commitment: 'confirmed',

@@ -12,8 +12,7 @@ use crate::{
 #[derive(Accounts)]
 pub struct Mint<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = !config.paused @ StablecoinError::TokenPaused,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -45,12 +44,6 @@ pub fn handler(ctx: Context<Mint>, amount: u64) -> Result<()> {
         StablecoinError::QuotaExceeded
     );
 
-    let config = &ctx.accounts.config;
-    let config_bump = config.bump;
-
-    let seeds: &[&[u8]] = &[CONFIG_SEED, &[config_bump]];
-    let signer_seeds = &[seeds];
-
     let mint_ix = mint_to(
         &ctx.accounts.token_2022_program.key(),
         &ctx.accounts.mint.key(),
@@ -60,16 +53,18 @@ pub fn handler(ctx: Context<Mint>, amount: u64) -> Result<()> {
         amount,
     )?;
 
-    invoke_signed(
-        &mint_ix,
-        &[
-            ctx.accounts.mint.to_account_info(),
-            ctx.accounts.recipient_token_account.to_account_info(),
-            ctx.accounts.config.to_account_info(),
-            ctx.accounts.token_2022_program.to_account_info(),
-        ],
-        signer_seeds,
-    )?;
+    ctx.accounts.config.with_signer_seeds(|seeds| {
+        invoke_signed(
+            &mint_ix,
+            &[
+                ctx.accounts.mint.to_account_info(),
+                ctx.accounts.recipient_token_account.to_account_info(),
+                ctx.accounts.config.to_account_info(),
+                ctx.accounts.token_2022_program.to_account_info(),
+            ],
+            &[seeds],
+        )
+    })?;
 
     let minter_info = &mut ctx.accounts.minter_info;
     minter_info.minted = minter_info

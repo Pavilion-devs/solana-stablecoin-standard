@@ -5,10 +5,40 @@ import {
   MINTER_SEED,
   ROLE_SEED,
   BLACKLIST_SEED,
+  STABLECOIN_SEED_LEN,
 } from './constants';
+
+export type StablecoinSeedInput = Uint8Array | number[] | string;
 
 export function deriveConfigPda(programId: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync([CONFIG_SEED], programId);
+}
+
+export function normalizeStablecoinSeed(seed: StablecoinSeedInput): Buffer {
+  const bytes =
+    typeof seed === 'string'
+      ? Buffer.from(seed, 'utf8')
+      : Buffer.from(seed);
+
+  if (bytes.length > STABLECOIN_SEED_LEN) {
+    throw new Error(`stablecoin seed must be at most ${STABLECOIN_SEED_LEN} bytes`);
+  }
+
+  if (bytes.length === STABLECOIN_SEED_LEN) {
+    return Buffer.from(bytes);
+  }
+
+  const normalized = Buffer.alloc(STABLECOIN_SEED_LEN);
+  bytes.copy(normalized);
+  return normalized;
+}
+
+export function deriveConfigPdaV2(
+  programId: PublicKey,
+  stablecoinSeed: StablecoinSeedInput
+): [PublicKey, number] {
+  const normalizedSeed = normalizeStablecoinSeed(stablecoinSeed);
+  return PublicKey.findProgramAddressSync([CONFIG_SEED, normalizedSeed], programId);
 }
 
 export function deriveMintPda(

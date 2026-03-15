@@ -3,6 +3,9 @@ export const MINT_SEED = Buffer.from('mint');
 export const MINTER_SEED = Buffer.from('minter');
 export const ROLE_SEED = Buffer.from('role');
 export const BLACKLIST_SEED = Buffer.from('blacklist');
+export const CONFIG_VERSION_V1 = 0;
+export const CONFIG_VERSION_V2 = 1;
+export const STABLECOIN_SEED_LEN = 32;
 
 export const MAX_NAME_LENGTH = 32;
 export const MAX_SYMBOL_LENGTH = 10;

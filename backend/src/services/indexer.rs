@@ -37,7 +37,10 @@ impl EventIndexer {
     }
 
     pub async fn start(&mut self) -> anyhow::Result<()> {
-        tracing::info!("Starting event indexer for program: {}", self.config.program_id);
+        tracing::info!(
+            "Starting event indexer for program: {}",
+            self.config.program_id
+        );
         let existing = self.poll_events().await?;
         tracing::info!("Loaded {} initial on-chain events", existing.len());
         Ok(())
@@ -112,9 +115,14 @@ impl EventIndexer {
             .await?
             .error_for_status()?;
         let payload: RpcResult<RpcTransactionResponse> = response.json().await?;
-        let result = payload.result.context("missing result for getTransaction")?;
+        let result = payload
+            .result
+            .context("missing result for getTransaction")?;
 
-        Ok(result.meta.and_then(|meta| meta.log_messages).unwrap_or_default())
+        Ok(result
+            .meta
+            .and_then(|meta| meta.log_messages)
+            .unwrap_or_default())
     }
 }
 

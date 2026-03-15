@@ -11,10 +11,14 @@ pub mod routes;
 pub mod services;
 pub mod types;
 
+use types::StablecoinTarget;
+
 use routes::{compliance, events, health, mint};
 use services::{
-    executor::BackendExecutor, indexer::{EventIndexer, IndexerConfig, OnChainEvent},
-    sanctions::SanctionsChecker, webhook::WebhookService,
+    executor::BackendExecutor,
+    indexer::{EventIndexer, IndexerConfig, OnChainEvent},
+    sanctions::SanctionsChecker,
+    webhook::WebhookService,
 };
 
 #[derive(Clone)]
@@ -32,6 +36,8 @@ pub struct Config {
     pub rpc_url: String,
     pub program_id: String,
     pub treasury: String,
+    pub default_config_pda: Option<String>,
+    pub default_stablecoin_seed: Option<String>,
     pub keypair_path: String,
     pub cli_entrypoint: String,
     pub cli_home: String,
@@ -55,12 +61,12 @@ impl Default for Config {
             program_id: std::env::var("PROGRAM_ID")
                 .unwrap_or_else(|_| "CRRt7KSFfY55BY64hiYGmiHZa5G9fRdqKTCiRNLmYdPe".to_string()),
             treasury: std::env::var("TREASURY").unwrap_or_default(),
-            keypair_path: std::env::var("SOLANA_KEYPAIR").unwrap_or_else(|_| {
-                format!("{home_dir}/.config/solana/id.json")
-            }),
-            cli_entrypoint: std::env::var("CLI_ENTRYPOINT").unwrap_or_else(|_| {
-                repo_root.join("cli/dist/index.js").display().to_string()
-            }),
+            default_config_pda: std::env::var("DEFAULT_CONFIG_PDA").ok(),
+            default_stablecoin_seed: std::env::var("DEFAULT_STABLECOIN_SEED").ok(),
+            keypair_path: std::env::var("SOLANA_KEYPAIR")
+                .unwrap_or_else(|_| format!("{home_dir}/.config/solana/id.json")),
+            cli_entrypoint: std::env::var("CLI_ENTRYPOINT")
+                .unwrap_or_else(|_| repo_root.join("cli/dist/index.js").display().to_string()),
             cli_home: std::env::var("CLI_HOME").unwrap_or(home_dir),
             cli_workdir: std::env::var("CLI_WORKDIR")
                 .unwrap_or_else(|_| repo_root.display().to_string()),
@@ -87,6 +93,7 @@ pub struct MintRequestRecord {
     pub recipient: String,
     pub amount: u64,
     pub reference: Option<String>,
+    pub target: StablecoinTarget,
     pub status: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
@@ -116,6 +123,26 @@ pub fn default_state() -> AppState {
     AppState::new(Config::default(), BackendExecutor::from_env())
 }
 
+pub fn resolve_target(
+    config: &Config,
+    requested: &StablecoinTarget,
+) -> Result<StablecoinTarget, String> {
+    let requested = requested.normalized();
+    requested.validate()?;
+
+    let resolved = StablecoinTarget {
+        config: requested
+            .config
+            .or_else(|| config.default_config_pda.clone()),
+        stablecoin_seed: requested
+            .stablecoin_seed
+            .or_else(|| config.default_stablecoin_seed.clone()),
+    };
+
+    resolved.validate()?;
+    Ok(resolved)
+}
+
 pub fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health_check))
@@ -125,7 +152,10 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/events", get(events::get_events))
         .route("/api/events/subscribe", post(events::subscribe))
         .route("/api/compliance/blacklist", get(compliance::list_blacklist))
-        .route("/api/compliance/blacklist/add", post(compliance::add_to_blacklist))
+        .route(
+            "/api/compliance/blacklist/add",
+            post(compliance::add_to_blacklist),
+        )
         .route(
             "/api/compliance/blacklist/remove",
             post(compliance::remove_from_blacklist),

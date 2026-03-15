@@ -10,8 +10,7 @@ use anchor_lang::prelude::*;
 #[instruction(minter: Pubkey)]
 pub struct AddOrUpdateMinter<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.authority == authority.key() @ StablecoinError::Unauthorized,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -61,8 +60,7 @@ pub fn add_minter(ctx: Context<AddOrUpdateMinter>, minter: Pubkey, quota: u64) -
 #[instruction(minter: Pubkey)]
 pub struct RemoveMinter<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.authority == authority.key() @ StablecoinError::Unauthorized,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -124,8 +122,7 @@ pub fn update_minter_quota(
 #[instruction(role: u8, member: Pubkey)]
 pub struct AddRole<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.authority == authority.key() @ StablecoinError::Unauthorized,
     )]
     pub config: Account<'info, StablecoinConfig>,
@@ -169,8 +166,7 @@ pub fn add_role(ctx: Context<AddRole>, role: u8, member: Pubkey) -> Result<()> {
 #[instruction(role: u8, member: Pubkey)]
 pub struct RemoveRole<'info> {
     #[account(
-        seeds = [CONFIG_SEED],
-        bump = config.bump,
+        constraint = config.matches_pda(&crate::ID, &config.key()) @ StablecoinError::InvalidConfigPda,
         constraint = config.authority == authority.key() @ StablecoinError::Unauthorized,
     )]
     pub config: Account<'info, StablecoinConfig>,

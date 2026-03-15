@@ -1,6 +1,9 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use tokio::{sync::RwLock, time::{sleep, Duration}};
+use serde::{Deserialize, Serialize};
+use tokio::{
+    sync::RwLock,
+    time::{sleep, Duration},
+};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct WebhookConfig {
@@ -45,7 +48,10 @@ impl WebhookService {
     pub async fn notify(&self, event_type: &str, data: serde_json::Value) {
         let webhooks = self.webhooks.read().await.clone();
         for webhook in &webhooks {
-            if webhook.active && (webhook.event_types.is_empty() || webhook.event_types.contains(&event_type.to_string())) {
+            if webhook.active
+                && (webhook.event_types.is_empty()
+                    || webhook.event_types.contains(&event_type.to_string()))
+            {
                 let payload = WebhookPayload {
                     id: uuid::Uuid::new_v4().to_string(),
                     event_type: event_type.to_string(),
@@ -53,7 +59,7 @@ impl WebhookService {
                     timestamp: Utc::now(),
                     attempts: 0,
                 };
-                
+
                 if let Err(e) = self.send_with_retry(&webhook.url, &payload).await {
                     tracing::error!("Webhook failed: {} - {}", webhook.url, e);
                 }
@@ -85,16 +91,12 @@ impl WebhookService {
     }
 
     async fn send_webhook(&self, url: &str, payload: &WebhookPayload) -> anyhow::Result<()> {
-        let response = self.client
-            .post(url)
-            .json(payload)
-            .send()
-            .await?;
-        
+        let response = self.client.post(url).json(payload).send().await?;
+
         if !response.status().is_success() {
             anyhow::bail!("Webhook returned status: {}", response.status());
         }
-        
+
         Ok(())
     }
 }

@@ -3,10 +3,11 @@ import { Preset, SolanaStablecoin } from '@stbr/sss-token';
 import { PublicKey } from '@solana/web3.js';
 import { loadInitConfigFile, saveConfig } from '../utils/config';
 import { createProgramContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions } from '../utils/target';
 
 const DEFAULT_TRANSFER_HOOK_PROGRAM_ID = 'HGAuoP17ytFpMbkToeJbP2RChQUPSv4koKuqqTUvw9dU';
 
-export const initCommand = new Command('init')
+export const initCommand = addStablecoinTargetOptions(new Command('init')
   .description('Initialize a new stablecoin')
   .option('-p, --preset <preset>', 'Preset to use (sss-1, sss-2, custom)')
   .option('-c, --custom <path>', 'Path to custom JSON or TOML config file')
@@ -21,9 +22,8 @@ export const initCommand = new Command('init')
     'Transfer hook program ID (required when transfer hook is enabled; defaults to localnet)'
   )
   .option('--default-frozen', 'Freeze accounts by default')
-  .option('--program-id <programId>', 'SSS program ID (defaults to localnet)')
   .option('-k, --keypair <path>', 'Path to authority keypair')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'), { allowConfig: false })
   .action(async (options) => {
     const fileConfig = options.custom ? loadInitConfigFile(options.custom) : {};
     const presetKey = String(options.preset ?? fileConfig.preset ?? 'sss-1').toLowerCase();
@@ -70,6 +70,7 @@ export const initCommand = new Command('init')
     }
 
     let transferHookProgram: PublicKey | undefined;
+    const stablecoinSeed = options.stablecoinSeed ?? fileConfig.stablecoinSeed;
     if (enableTransferHook) {
       transferHookProgram = new PublicKey(
         options.transferHookProgram ??
@@ -85,6 +86,9 @@ export const initCommand = new Command('init')
       console.log(`  Transfer Hook Program: ${transferHookProgram.toBase58()}`);
     }
     console.log(`  Default Frozen: ${defaultAccountFrozen}`);
+    if (stablecoinSeed) {
+      console.log(`  Stablecoin Seed: ${stablecoinSeed}`);
+    }
 
     try {
       const { program, wallet, programId } = createProgramContext(
@@ -108,6 +112,7 @@ export const initCommand = new Command('init')
           enableTransferHook,
           transferHookProgram,
           defaultAccountFrozen,
+          stablecoinSeed,
         },
         wallet
       );
@@ -121,6 +126,8 @@ export const initCommand = new Command('init')
         name: state.name,
         symbol: state.symbol,
         decimals: state.decimals,
+        stablecoinSeed,
+        version: state.version,
         network:
           options.rpc ??
           fileConfig.rpc ??
@@ -132,6 +139,9 @@ export const initCommand = new Command('init')
       console.log(`Program: ${programId.toBase58()}`);
       console.log(`Config PDA: ${stablecoin.getConfigPda().toBase58()}`);
       console.log(`Mint PDA: ${stablecoin.getMintPda().toBase58()}`);
+      if (stablecoinSeed) {
+        console.log(`Stablecoin Seed: ${stablecoinSeed}`);
+      }
       console.log('Run `sss-token status` to view live state.');
     } catch (err: any) {
       console.error(`Error: ${err.message}`);

@@ -1,14 +1,19 @@
 import { Command } from 'commander';
 import { loadStablecoinContext } from '../utils/stablecoin';
+import { addStablecoinTargetOptions, pickStablecoinTargetOptions } from '../utils/target';
 
-export const pauseCommand = new Command('pause')
+export const pauseCommand = addStablecoinTargetOptions(new Command('pause')
   .description('Pause or unpause the token')
   .option('--unpause', 'Unpause the token')
   .option('-k, --keypair <path>', 'Path to pauser keypair')
-  .option('-r, --rpc <url>', 'RPC endpoint URL')
+  .option('-r, --rpc <url>', 'RPC endpoint URL'))
   .action(async (options) => {
     try {
-      const { stablecoin, wallet } = await loadStablecoinContext(options.rpc, options.keypair);
+      const { stablecoin, wallet } = await loadStablecoinContext(
+        options.rpc,
+        options.keypair,
+        pickStablecoinTargetOptions(options)
+      );
 
       if (options.unpause) {
         const signature = await stablecoin.unpause(wallet);
